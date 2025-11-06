@@ -38,6 +38,9 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
   // TODO: 1. Initialize Firestore & Create a Stream for items
   final FirestoreService _firestoreService = FirestoreService();
 
+  String _searchQuery = '';
+  String _selectedCategory = 'All';
+
   // TODO: 2. Build a ListView using a StreamBuilder to display items
   // TODO: 3. Implement Navigation to an "Add Item" screen
   // TODO: 4. Implement one of the Delete methods (swipe or in-edit)
@@ -52,7 +55,62 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
           children: <Widget>[
             Text('Inventory Management System'),
             // TODO: Replace this Text widget with your StreamBuilder & ListView
-            
+
+            const SizedBox(height: 10),
+
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search items by name...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.toLowerCase();
+                  });
+                },
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // Category Filter
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              child: StreamBuilder<List<Item>>(
+                stream: _firestoreService.getItemsStream(),
+                builder: (context, snapshot) {
+                  final allItems = snapshot.data ?? [];
+                  final categories = [
+                    'All',
+                    ...{for (var item in allItems) item.category}
+                  ];
+
+                  return DropdownButtonFormField<String>(
+                    value: _selectedCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Filter by Category',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: categories
+                        .map((cat) =>
+                          DropdownMenuItem(value: cat, child: Text(cat)))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCategory = value!;
+                      });
+                    },
+                  );
+                },
+              ),
+            ),
+
             const SizedBox(height: 10),
 
             Expanded(
@@ -67,7 +125,25 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                     return const Text('No items found.');
                   }
 
-                  final items = snapshot.data!;
+                  // Filtering
+                  var items = snapshot.data!;
+
+                  if (_searchQuery.isNotEmpty) {
+                    items = items
+                      .where((item) =>
+                        item.name.toLowerCase().contains(_searchQuery))
+                      .toList();
+                  }
+
+                  if (_selectedCategory != 'All') {
+                    items = items
+                      .where((item) => item.category == _selectedCategory)
+                      .toList();
+                  }
+
+                  if (items.isEmpty) {
+                    return const Text('No matching items found.');
+                  }
 
                   return ListView.builder(
                     itemCount: items.length,
@@ -90,7 +166,7 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                         child: ListTile(
                           title: Text(item.name),
                           subtitle: Text(
-                            'Qty: ${item.quantity}, \$${item.price.toStringAsFixed(2)}'),
+                              'Qty: ${item.quantity}, \$${item.price.toStringAsFixed(2)}'),
                           trailing: Text(item.category),
                           onTap: () {
                             Navigator.push(
