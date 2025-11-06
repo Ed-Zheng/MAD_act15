@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'item.dart';
 import 'service.dart';
+import 'add_edit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -92,6 +93,12 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                             'Qty: ${item.quantity}, \$${item.price.toStringAsFixed(2)}'),
                           trailing: Text(item.category),
                           onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddEditItemScreen(item: item),
+                              ),
+                            );
                           },
                         ),
                       );
@@ -106,6 +113,12 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // TODO: Navigate to the Add/Edit Item Form
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddEditItemScreen(),
+            ),
+          );
         },
         tooltip: 'Add Item',
         child: Icon(Icons.add),
