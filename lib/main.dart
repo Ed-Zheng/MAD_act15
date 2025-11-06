@@ -41,6 +41,9 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
   String _searchQuery = '';
   String _selectedCategory = 'All';
 
+  bool _bulkMode = false;
+  Set<String> _selectedItemIds = {};
+
   // TODO: 2. Build a ListView using a StreamBuilder to display items
   // TODO: 3. Implement Navigation to an "Add Item" screen
   // TODO: 4. Implement one of the Delete methods (swipe or in-edit)
@@ -48,7 +51,22 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          // Bulk toggle
+          IconButton(
+            icon: Icon(_bulkMode ? Icons.close : Icons.select_all),
+            tooltip: _bulkMode ? 'Exit Bulk Mode' : 'Select Multiple',
+            onPressed: () {
+              setState(() {
+                _bulkMode = !_bulkMode;
+                _selectedItemIds.clear();
+              });
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -99,7 +117,7 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                     ),
                     items: categories
                         .map((cat) =>
-                          DropdownMenuItem(value: cat, child: Text(cat)))
+                            DropdownMenuItem(value: cat, child: Text(cat)))
                         .toList(),
                     onChanged: (value) {
                       setState(() {
@@ -130,15 +148,15 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
 
                   if (_searchQuery.isNotEmpty) {
                     items = items
-                      .where((item) =>
-                        item.name.toLowerCase().contains(_searchQuery))
-                      .toList();
+                        .where((item) =>
+                            item.name.toLowerCase().contains(_searchQuery))
+                        .toList();
                   }
 
                   if (_selectedCategory != 'All') {
                     items = items
-                      .where((item) => item.category == _selectedCategory)
-                      .toList();
+                        .where((item) => item.category == _selectedCategory)
+                        .toList();
                   }
 
                   if (items.isEmpty) {
@@ -149,9 +167,12 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final item = items[index];
+                      final isSelected = _selectedItemIds.contains(item.id);
                       return Dismissible(
                         key: Key(item.id ?? index.toString()),
-                        direction: DismissDirection.endToStart,
+                        direction: _bulkMode
+                          ? DismissDirection.none
+                          : DismissDirection.endToStart,
                         background: Container(
                           color: Colors.red,
                           alignment: Alignment.centerRight,
@@ -159,23 +180,47 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (direction) async {
-                          if (item.id != null) {
+                          if (!_bulkMode && item.id != null) {
                             await _firestoreService.deleteItem(item.id!);
                           }
                         },
                         child: ListTile(
+                          leading: _bulkMode
+                            ? Checkbox(
+                                value: isSelected,
+                                onChanged: (checked) {
+                                  setState(() {
+                                    if (checked == true) {
+                                      _selectedItemIds.add(item.id!);
+                                    } else {
+                                      _selectedItemIds.remove(item.id);
+                                    }
+                                  });
+                                },
+                              )
+                            : null,
                           title: Text(item.name),
                           subtitle: Text(
-                              'Qty: ${item.quantity}, \$${item.price.toStringAsFixed(2)}'),
+                            'Qty: ${item.quantity}, \$${item.price.toStringAsFixed(2)}'),
                           trailing: Text(item.category),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
+                          onTap: _bulkMode
+                            ? () {
+                                setState(() {
+                                  if (isSelected) {
+                                    _selectedItemIds.remove(item.id);
+                                  } else {
+                                    _selectedItemIds.add(item.id!);
+                                  }
+                                });
+                              }
+                            : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
                                 builder: (context) => AddEditItemScreen(item: item),
-                              ),
-                            );
-                          },
+                                    ),
+                                  );
+                                },
                         ),
                       );
                     },
@@ -183,6 +228,51 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                 },
               ),
             ),
+
+            // Bulk Action Bar
+            if (_bulkMode && _selectedItemIds.isNotEmpty)
+              Container(
+                color: Colors.blue.shade50,
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Delete Selected'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent),
+                      onPressed: () async {
+                        for (var id in _selectedItemIds) {
+                          await _firestoreService.deleteItem(id);
+                        }
+                        setState(() {
+                          _selectedItemIds.clear();
+                        });
+                      },
+                    ),
+
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Bulk Update Category'),
+                      onPressed: () async {
+                        final newCategory = await _showCategoryDialog(context);
+                        if (newCategory != null && newCategory.isNotEmpty) {
+                          for (var id in _selectedItemIds) {
+                            await FirebaseFirestore.instance
+                              .collection('items')
+                              .doc(id)
+                              .update({'category': newCategory});
+                          }
+                          setState(() {
+                            _selectedItemIds.clear();
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
@@ -198,6 +288,30 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
         },
         tooltip: 'Add Item',
         child: Icon(Icons.add),
+      ),
+    );
+  }
+
+  // Bulk category update
+  Future<String?> _showCategoryDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter new category'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Category name'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+
+          TextButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Save')),
+        ],
       ),
     );
   }
