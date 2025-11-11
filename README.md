@@ -1,16 +1,4 @@
-# act15
-
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+I added in the advanced search/filtering and the bulk operations.
+The search bar takes the user input and refreshes the list in real time and shows all possible items.
+The filtering is a dropdown menu limited to categories so you can quickly see all items under individual categories.
+The bulk operations allows for the user to select multiple items in a edit-like mode and proceed to either delete all of those items or update their categories.
